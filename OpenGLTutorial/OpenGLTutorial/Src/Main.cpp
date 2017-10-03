@@ -6,6 +6,7 @@
 #include "Texture.h"
 #include "Shader.h"
 #include "OffscreenBuffer.h"
+#include "UniformBuffer.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include <iostream> 
 #include <vector>
@@ -61,7 +62,31 @@ struct VertexData {
 	glm::vec4 lightPosition;
 	glm::vec4 lightColor;
 	glm::vec4 ambientColor;
+};
+
+/**
+* ライトデータ(点光源).
+*/
+struct PointLight {
+	glm::vec4 position; ///< 座標(ワールド座標系).
+	glm::vec4 color; ///< 明るさ.
 }; 
+
+const int maxLightCount = 4; ///< ライトの数. 
+
+/**
+* ライティングパラメータ.
+*/
+struct LightData {
+	glm::vec4 ambientColor; ///< 環境光.
+	PointLight light[maxLightCount]; ///< ライトのリスト.
+};
+
+/** *
+ポストエフェクトデータ.
+*/ struct PostEffectData {
+	glm::mat4x4 matColor; ///< 色変換行列.
+};
 
 /**
 * 部分描画データ.
@@ -217,19 +242,35 @@ int main() {
 	const GLuint vbo = CreateVBO(sizeof(vertices), vertices);
 	const GLuint ibo = CreateIBO(sizeof(indices), indices);
 	const GLuint vao = CreateVAO(vbo, ibo);
+	const UniformBufferPtr uboVertex = UniformBuffer::Create(sizeof(VertexData), 0, "VertexData");
+	// ライトデータ用の UBO を作成
+	const UniformBufferPtr uboLight = UniformBuffer::Create(sizeof(LightData), 1, "LightData");
+	// 色変換行列用のUBOを作成
+	const UniformBufferPtr uboPostEffect = UniformBuffer::Create(sizeof(PostEffectData), 2, "PostEffectData");
+	
 	const GLuint ubo = CreateUBO(sizeof(VertexData));
+
 	// シェーダーを読み込む
-	const GLuint shaderProgram = Shader::CreateProgramFromFile("Res/Tutorial.vert", "Res/Tutorial.flag");
-	if (!vbo || !ibo || !vao || !ubo || !shaderProgram) {
+	// チュートリアルシェーダー
+	const Shader::ProgramPtr progTutorial = Shader::Program::Create("Res/Tutorial.vert", "Res/Tutorial.frag");
+	// カラーフィルターシェーダー
+	//const Shader::ProgramPtr progColorFilter = Shader::Program::Create("Res/ColorFilter.vert", "Res/ColorFilter.frag");
+	// ポスター化シェーダー
+	const Shader::ProgramPtr progColorFilter = Shader::Program::Create("Res/Posterization.vert", "Res/Posterization.frag");
+	
+	if (!vbo || !ibo || !vao || !uboVertex || !uboLight || !progTutorial || !progColorFilter) {
 		return 1;
 	}
+	progTutorial->UniformBlockBinding("VertexData", 0);
+	progTutorial->UniformBlockBinding("LightData", 1);
 
+	/*
 	const GLuint uboIndex = glGetUniformBlockIndex(shaderProgram, "VertexData");
 	if (uboIndex == GL_INVALID_INDEX) {
 		return 1;
 	}
 	glUniformBlockBinding(shaderProgram, uboIndex, 0); 
-
+	*/
 	// テクスチャデータ.
 	static const uint32_t textureData[] = {
 		0xffffffff, 0xffcccccc, 0xffffffff, 0xffcccccc, 0xffffffff,
@@ -268,38 +309,39 @@ int main() {
 		const glm::vec3 viewPos = glm::rotate(glm::mat4(), glm::radians(degree), glm::vec3(0, 1, 0)) * glm::vec4(2, 3, 3, 1);
 
 		// 頂点データの描画
-		glUseProgram(shaderProgram);
+		progTutorial->UseProgram();
 
 		// UBO にデータを転送
 		const glm::mat4x4 matProj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 		const glm::mat4x4 matView = glm::lookAt(viewPos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 		VertexData vertexData;
 		vertexData.matMVP = matProj * matView;
-		vertexData.lightPosition = glm::vec4(1, 1, 1, 1);
-		vertexData.lightColor = glm::vec4(2, 2, 2, 1);
-		vertexData.ambientColor = glm::vec4(0.05f, 0.1f, 0.2f, 1);
-		glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(VertexData), &vertexData);
+		//vertexData.lightPosition = glm::vec4(1, 1, 1, 1);
+		//vertexData.lightColor = glm::vec4(2, 2, 2, 1);
+		//vertexData.ambientColor = glm::vec4(0.05f, 0.1f, 0.2f, 1);
+		// UBO へデータを転送
+		uboVertex->BufferSubData(&vertexData);
 
+		LightData lightData;
+		lightData.ambientColor= glm::vec4(0.05f, 0.1f, 0.2f, 1);
+		lightData.light[0].position = glm::vec4(1, 1, 1, 1);
+		lightData.light[0].color = glm::vec4(2, 2, 2, 1);
+		lightData.light[1].position = glm::vec4(-0.2f, 0, 0.6f, 1);
+		lightData.light[1].color = glm::vec4(0.125f, 0.125f, 0.05f, 1);
+		uboLight->BufferSubData(&lightData);
 
 		// 座標変換行列を作成し、uniform変数に転送する
+		/*
 		const GLint matMVPLoc = glGetUniformLocation(shaderProgram, "matMVP");
 		if (matMVPLoc >= 0) {
 			const glm::mat4x4 matProj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 			const glm::mat4x4 matView = glm::lookAt(viewPos, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 			const glm::mat4x4 matMVP = matProj * matView;
 			glUniformMatrix4fv(matMVPLoc, 1, GL_FALSE, &matMVP[0][0]);
-		}
+		}*/
 
-		// サンプラーの位置を取得
-		const GLint colorSamplerLoc = glGetUniformLocation(shaderProgram, "colorSampler");
-
-		// サンプラーとテクスチャを結びつける 
-		if (colorSamplerLoc >= 0) {
-			glUniform1i(colorSamplerLoc, 0);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, tex->Id());
-		}
+		// テクスチャ設定
+		progTutorial->BindTexture(GL_TEXTURE0, GL_TEXTURE_2D, tex->Id());
 
 		glBindVertexArray(vao);
 
@@ -313,14 +355,25 @@ int main() {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.5f, 0.3f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		if (colorSamplerLoc >= 0) {
-			glBindTexture(GL_TEXTURE_2D, offscreen->GetTexutre());
-		}
+		// モノトーンシェーダー使用
+		progColorFilter->UseProgram();
+		progTutorial->BindTexture(GL_TEXTURE0, GL_TEXTURE_2D, offscreen->GetTexutre());
+
+		PostEffectData postEffect;
+		postEffect.matColor[0] = glm::vec4(0.393f, 0.349f, 0.272f, 0);
+		postEffect.matColor[1] = glm::vec4(0.769f, 0.686f, 0.534f, 0);
+		postEffect.matColor[2] = glm::vec4(0.189f, 0.168f, 0.131f, 0);
+		postEffect.matColor[3] = glm::vec4(0, 0, 0, 1);
+		uboPostEffect->BufferSubData(&postEffect);
 		
 		// 初期化
-		vertexData = {};
-		vertexData.ambientColor = glm::vec4(1, 1, 1, 1);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(VertexData), &vertexData);
+		//vertexData = {};
+		//vertexData.ambientColor = glm::vec4(1, 1, 1, 1);
+		// UBO にデータを転送
+		//uboVertex->BufferSubData(&vertexData);
+		//lightData = {};
+		//lightData.ambientColor= glm::vec4(1);
+		//uboLight->BufferSubData(&lightData);
 
 		glDrawElements(
 			GL_TRIANGLES, renderingParts[1].size,
@@ -331,7 +384,7 @@ int main() {
 	}
 
 	// オブジェクトの削除
-	glDeleteProgram(shaderProgram);
+	//glDeleteProgram(shaderProgram);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &vbo);
 
