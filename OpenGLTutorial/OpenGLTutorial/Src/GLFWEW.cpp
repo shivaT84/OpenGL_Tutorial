@@ -1,10 +1,26 @@
-/** * @file GLFWE.cpp */
+/**
+* @file GLFWE.cpp
+*/
+
 #include "GLFWEW.h"
 #include <iostream>
 
 
 /// GLFW と GLEW をラップするための名前空間
 namespace GLFWEW { 
+
+	namespace /* unnamed */ {
+		/**
+		* GLFW からのエラー報告を処理する.
+		*
+		* @param error エラー番号.
+		* @param desc  エラーの内容.
+		*/
+		void ErrorCallback(int error, const char* desc) {
+			std::cerr << "ERROR: " << desc << std::endl;
+		}
+	} // unnamed namespace 
+
 	/**
 	* シングルトンインスタンスを取得する
 	*

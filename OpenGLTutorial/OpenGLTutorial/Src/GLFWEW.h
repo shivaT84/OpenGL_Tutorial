@@ -1,10 +1,12 @@
 /**
 * @file GLFWEW.h
 */
+
 #ifndef GLFWEW_H_INCLUDED
 #define GLFWEW_H_INCLUDED
 #include <GL/glew.h>
 #include <GLFW/glfw3.h> 
+
 
 namespace GLFWEW {
 	/**
