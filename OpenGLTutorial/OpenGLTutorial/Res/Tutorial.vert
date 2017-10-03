@@ -15,6 +15,8 @@ layout(location=3) out vec3 outWorldNormal;
 */
 layout(std140) uniform VertexData {
 	mat4 matMVP;
+	mat4 matModel;
+	mat3x4 matNormal;
 } vertexData;
 
 
@@ -22,7 +24,7 @@ void main() {
 
 	outColor = vColor;
 	outTexCoord = vTexCoord;
-	 outWorldPosition = vPosition;
-	 outWorldNormal = vNormal;
-	gl_Position = vertexData.matMVP * vec4(vPosition, 1);
+	outWorldPosition = (vertexData.matModel * vec4(vPosition, 1.0)).xyz;
+	outWorldNormal = mat3(vertexData.matNormal) * vNormal;
+	gl_Position = vertexData.matMVP * vec4(vPosition, 1.0);
 }

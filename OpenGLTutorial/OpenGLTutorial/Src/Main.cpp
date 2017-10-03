@@ -8,7 +8,10 @@
 #include "OffscreenBuffer.h"
 #include "UniformBuffer.h"
 #include "Mesh.h"
-#include "glm/gtc/matrix_transform.hpp"
+#include "Entity.h"
+#include <random>
+#include <time.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <iostream> 
 #include <vector>
 
@@ -60,9 +63,8 @@ const GLuint indices[] = {
 /// 頂点シェーダのパラメータ型.
 struct VertexData {
 	glm::mat4 matMVP;
-	glm::vec4 lightPosition;
-	glm::vec4 lightColor;
-	glm::vec4 ambientColor;
+	glm::mat4 matModel;
+	glm::mat3x4 matNormal;
 };
 
 /**
@@ -193,6 +195,64 @@ GLuint CreateVAO(GLuint vbo, GLuint ibo) {
 }
 
 /**
+* 敵の円盤の状態を更新する.
+*/
+struct UpdateToroid {
+	explicit UpdateToroid(Entity::Buffer& buffer) : entityBuffer(buffer) {}
+
+	void operator()(Entity::Entity& entity, void* ubo, double delta, const glm::mat4& matView, const glm::mat4& matProj) {
+		// 範囲外に出たら削除する.
+		const glm::vec3 pos = entity.Position();
+		if (std::abs(pos.x) > 40.0f || std::abs(pos.z) > 40.0f) {
+			entityBuffer.RemoveEntity(&entity);
+			return;
+		} 
+
+		// 円盤を回転させる.
+		float rot = glm::angle(entity.Rotation());
+		rot += glm::radians(15.0f) * static_cast<float>(delta);
+		if (rot > glm::pi<float>() * 2.0f) {
+			rot -= glm::pi<float>() * 2.0f;
+		}
+		entity.Rotation(glm::angleAxis(rot, glm::vec3(0, 1, 0))); 
+
+		// 頂点シェーダーのパラメータを UBO にコピーする.
+		VertexData data;
+		data.matModel = entity.TRSMatrix();
+		data.matNormal = glm::mat4_cast(entity.Rotation());
+		data.matMVP = matProj * matView * data.matModel;
+		memcpy(ubo, &data, sizeof(VertexData));
+	} 
+
+	Entity::Buffer& entityBuffer;
+};
+
+/**
+* ゲームの状態を更新する.
+*
+* @param entityBuffer 敵エンティティ追加先のエンティティバッファ.
+* @param meshBuffer   敵エンティティのメッシュを管理しているメッシュバッファ.
+* @param tex          敵エンティティ用のテクスチャ.
+* @param prog         敵エンティティ用のシェーダープログラム.
+*/
+void Update(Entity::BufferPtr entityBuffer, Mesh::BufferPtr meshBuffer, TexturePtr tex, Shader::ProgramPtr prog) {
+	static std::mt19937 rand(time(nullptr));
+	static double interval = 0;
+
+	interval -= 1.0 / 60.0;
+	if (interval <= 0) {
+		const std::uniform_real_distribution<float> posXRange(-15, 15);
+		const glm::vec3 pos(posXRange(rand), 0, 40);
+		const Mesh::MeshPtr& mesh = meshBuffer->GetMesh("Toroid");
+		if (Entity::Entity* p = entityBuffer->AddEntity(pos, mesh, tex, prog, UpdateToroid(*entityBuffer))) {
+			p->Velocity(glm::vec3(pos.x < 0 ? 0.1f : -0.1f, 0, -1.0f));
+		}
+		const std::uniform_real_distribution<double> intervalRange(3.0, 6.0);
+		interval = intervalRange(rand);
+	}
+}
+
+/**
 * Uniform Block Objectを作成する.
 *
 * @param size Uniform Blockのサイズ.
@@ -290,6 +350,12 @@ int main() {
 	Mesh::BufferPtr meshBuffer = Mesh::Buffer::Create(10 * 1024, 30 * 1024);
 	meshBuffer->LoadMeshFromFile("Res/Toroid.fbx");
 
+	Entity::BufferPtr entityBuffer = Entity::Buffer::Create(1024, sizeof(VertexData), 0, "VertexData");
+	if (!entityBuffer) {
+		return 1;
+	}
+	std::mt19937 rand(static_cast<unsigned int>(time(nullptr)));
+
 	// 深度バッファ使用
 	glEnable(GL_DEPTH_TEST);
 
@@ -298,19 +364,17 @@ int main() {
 
 	// メインループ
 	while (!window.ShouldClose()) {
+
+		Update(entityBuffer, meshBuffer, texToroid, progTutorial);
+
 		// 描画を全て変更したオフスクリーンバッファに対して行われる
 		glBindFramebuffer(GL_FRAMEBUFFER, offscreen->GetFramebuffer());
 
 		glClearColor(0.1f, 0.3f, 0.5f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		static float degree = 0.0f; degree += 0.1f;
-		if (degree >= 360.0f) {
-			degree -= 360.0f;
-		}
-
 		// 視点を動かす
-		const glm::vec3 viewPos = glm::rotate(glm::mat4(), glm::radians(degree), glm::vec3(0, 1, 0)) * glm::vec4(2, 3, 3, 1);
+		const glm::vec3 viewPos = glm::vec4(0, 20, -20, 1);
 
 		// 頂点データの描画
 		progTutorial->UseProgram();
@@ -328,10 +392,10 @@ int main() {
 
 		LightData lightData;
 		lightData.ambientColor= glm::vec4(0.05f, 0.1f, 0.2f, 1);
-		lightData.light[0].position = glm::vec4(1, 1, 1, 1);
-		lightData.light[0].color = glm::vec4(2, 2, 2, 1);
-		lightData.light[1].position = glm::vec4(-0.2f, 0, 0.6f, 1);
-		lightData.light[1].color = glm::vec4(0.125f, 0.125f, 0.05f, 1);
+
+		lightData.light[0].color = glm::vec4(12000, 12000, 12000, 1);
+		lightData.light[0].position = glm::vec4(40, 100, 20, 1);
+
 		uboLight->BufferSubData(&lightData);
 
 		// 座標変換行列を作成し、uniform変数に転送する
@@ -359,6 +423,10 @@ int main() {
 		progTutorial->BindTexture(GL_TEXTURE0, GL_TEXTURE_2D, texToroid->Id());
 		meshBuffer->BindVAO();
 		meshBuffer->GetMesh("Toroid")->Draw(meshBuffer);
+
+		entityBuffer->Update(1.0 / 60.0, matView, matProj);
+		entityBuffer->Draw(meshBuffer);
+
 		glBindVertexArray(vao);
 
 		// オフスクリーンバッファを使ってバックバッファを描画する
