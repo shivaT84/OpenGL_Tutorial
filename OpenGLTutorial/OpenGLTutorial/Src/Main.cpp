@@ -7,6 +7,7 @@
 #include "Shader.h"
 #include "OffscreenBuffer.h"
 #include "UniformBuffer.h"
+#include "Mesh.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include <iostream> 
 #include <vector>
@@ -152,7 +153,6 @@ GLuint CreateIBO(GLsizeiptr size, const GLvoid* data){
 	return ibo;
 }
 
-
 /**
 * 頂点アトリビュートを設定する.
 *
@@ -282,9 +282,13 @@ int main() {
 
 	//TexturePtr tex = Texture::Create(5, 5, GL_RGBA8, GL_RGBA, textureData);
 	TexturePtr tex = Texture::LoadFromFile("Res/Sample.bmp");
-	if (!tex) {
+	TexturePtr texToroid = Texture::LoadFromFile("Res/Toroid.bmp");
+	if (!tex || !texToroid) {
 		return 1;
 	}
+
+	Mesh::BufferPtr meshBuffer = Mesh::Buffer::Create(10 * 1024, 30 * 1024);
+	meshBuffer->LoadMeshFromFile("Res/Toroid.fbx");
 
 	// 深度バッファ使用
 	glEnable(GL_DEPTH_TEST);
@@ -350,6 +354,12 @@ int main() {
 			GL_TRIANGLES, renderingParts[0].size,
 			GL_UNSIGNED_INT, renderingParts[0].offset
 		);
+
+		// メッシュの表示
+		progTutorial->BindTexture(GL_TEXTURE0, GL_TEXTURE_2D, texToroid->Id());
+		meshBuffer->BindVAO();
+		meshBuffer->GetMesh("Toroid")->Draw(meshBuffer);
+		glBindVertexArray(vao);
 
 		// オフスクリーンバッファを使ってバックバッファを描画する
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
