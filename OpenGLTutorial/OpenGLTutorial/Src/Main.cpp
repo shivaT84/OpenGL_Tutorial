@@ -6,13 +6,29 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <random>
 
+/// エンティティの衝突グループID.
+enum EntityGroupId {
+	EntityGroupId_Player,
+	EntityGroupId_PlayerShot,
+	EntityGroupId_Enemy,
+	EntityGroupId_EnemyShot,
+	EntityGroupId_Others,
+};
+
+/// 衝突形状リスト.
+static const Entity::CollisionData collisionDataList[] = {
+	{ glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },
+	{ glm::vec3(-0.5f, -0.5f, -1.0f), glm::vec3(0.5f, 0.5f, 1.0f) },
+	{ glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(1.0f, 1.0f, 1.0f) },
+	{ glm::vec3(-0.25f, -0.25f, -0.25f), glm::vec3(0.25f, 0.25f, 0.25f) },
+};
 
 /**
 * 敵の円盤の状態を更新する.
 */
 struct UpdateToroid {
 
-	void operator()(Entity::Entity& entity, void* ubo, double delta, const glm::mat4& matView, const glm::mat4& matProj) {
+	void operator()(Entity::Entity& entity, double delta) {
 		// 範囲外に出たら削除する.
 		const glm::vec3 pos = entity.Position();
 		if (std::abs(pos.x) > 40.0f || std::abs(pos.z) > 40.0f) {
@@ -27,22 +43,65 @@ struct UpdateToroid {
 			rot -= glm::pi<float>() * 2.0f;
 		}
 		entity.Rotation(glm::angleAxis(rot, glm::vec3(0, 1, 0))); 
-
-		// 頂点シェーダーのパラメータを UBO にコピーする.
-		Uniform::VertexData data;
-		data.matModel = entity.TRSMatrix();
-		data.matNormal = glm::mat4_cast(entity.Rotation());
-		data.matMVP = matProj * matView * data.matModel;
-		memcpy(ubo, &data, sizeof(Uniform::VertexData));
 	} 
+};
+
+/**
+* 自機の弾の更新.
+*/
+struct UpdatePlayerShot{
+	void operator()(Entity::Entity& entity, double delta){
+		const glm::vec3 pos = entity.Position();
+		if (std::abs(pos.x) > 40 || pos.z < -4 || pos.z > 40) {
+			entity.Destroy();
+			return;
+		}
+	}
+};
+
+/**
+* @desc	爆発の更新.
+* @tips	時間経過に応じて大きさ、色、角度を変化させてゆき、一定時間が経過したら削除する
+*/
+struct UpdateBlast{
+	void operator()(Entity::Entity& entity, double delta) {
+		// 一定時間が経過したら削除
+		timer += delta;
+		if (timer >= 0.5) {
+			entity.Destroy();
+			return;
+		}
+		const float variation = static_cast<float>(timer * 4); // 変化量.
+		// 大きさは1倍からスタートして線形に拡大率を上げていき、消滅直前におよそ3倍になるように設定
+		entity.Scale(glm::vec3(static_cast<float>(1 + variation))); // 徐々に拡大する.
+
+		// 時間経過で色と透明度を変化させる.
+		static const glm::vec4 color[] = {
+			glm::vec4(1.0f, 1.0f, 0.75f, 1),
+			glm::vec4(1.0f, 0.5f, 0.1f, 1),
+			glm::vec4(0.25f, 0.1f, 0.1f, 0),
+		};
+		const glm::vec4 col0 = color[static_cast<int>(variation)];
+		const glm::vec4 col1 = color[static_cast<int>(variation) + 1];
+		const glm::vec4 newColor = glm::mix(col0, col1, std::fmod(variation, 1));
+		entity.Color(newColor);
+
+		// Y軸まわりを秒間60度の速度で回転させる.
+		glm::vec3 euler = glm::eulerAngles(entity.Rotation());
+		euler.y += glm::radians(60.0f) * static_cast<float>(delta);
+		entity.Rotation(glm::quat(euler));
+	}
+
+	double timer = 0;
 };
 
 /**
 * 自機の更新
 */
 struct UpdatePlayer {
-	void operator()(Entity::Entity& entity, void* ubo, double delta, const glm::mat4& matView, const glm::mat4& matProj) {
+	void operator()(Entity::Entity& entity, double delta) {
 
+		// perator()の座標を更新する処理
 		GameEngine& game = GameEngine::Instance();
 		const GamePad gamepad = game.GetGamePad();
 		glm::vec3 vec;
@@ -62,7 +121,7 @@ struct UpdatePlayer {
 		}
 
 		if (vec.x || vec.z) {
-			vec = glm::normalize(vec) * 2.0f;
+			vec = glm::normalize(vec) * 2.0f;//15.0f
 		}
 		entity.Velocity(vec);
 		entity.Rotation(glm::quat(glm::vec3(0, 0, rotZ)));
@@ -71,12 +130,33 @@ struct UpdatePlayer {
 		pos = glm::min(glm::vec3(11, 100, 20), glm::max(pos, glm::vec3(-11, -100, 1)));
 		entity.Position(pos);
 
-		Uniform::VertexData data;
-		data.matModel = entity.TRSMatrix();
-		data.matNormal = glm::mat4_cast(entity.Rotation());
-		data.matMVP = matProj * matView * data.matModel;
-		memcpy(ubo, &data, sizeof(Uniform::VertexData));
+		// ボタンが押されたら自機から弾を発射する
+		if (gamepad.buttons & GamePad::A) {
+			shotInterval -= delta;// shotIntervalが減算
+
+			// shotIntervalが0以下になったら自機の左右から1発ずつ、合計2発の弾が発射
+			if (shotInterval <= 0) {
+				glm::vec3 pos = entity.Position();
+				pos.x -= 0.3f;
+				for (int i = 0; i < 2; ++i) {
+					// 「NormalShot」という名前のモデルはPlayer.fbxファイルに含まれている
+					if (Entity::Entity* p = game.AddEntity(EntityGroupId_PlayerShot, pos,
+						"NormalShot", "Res/Player.bmp", UpdatePlayerShot())) {
+						p->Velocity(glm::vec3(0, 0, 80));
+						p->Collision(collisionDataList[EntityGroupId_PlayerShot]);
+					}
+					pos.x += 0.6f;
+				}
+				// 0.25秒後に次に弾が発射されるように設定(この値を小さくすれば連射力が高まる)
+				shotInterval = 0.25;
+			}
+		} else {
+			// ボタンが押されていなかったなら
+			shotInterval = 0;// 次にボタンが押された時に即座に弾が発射できるように0に設定
+		}
 	}
+private:
+	double shotInterval = 0;
 };
 
 /**
@@ -86,8 +166,11 @@ struct Update {
 	void operator()(double delta) {
 		GameEngine& game = GameEngine::Instance();
 
+		// 自機作成コード
 		if (!pPlayer) {
-			pPlayer = game.AddEntity(glm::vec3(0, 0, 2), "Aircraft", "Res/Player.bmp", UpdatePlayer());
+			pPlayer = game.AddEntity(EntityGroupId_Player, glm::vec3(0, 0, 2),
+				"Aircraft", "Res/Player.bmp", UpdatePlayer());
+			pPlayer->Collision(collisionDataList[EntityGroupId_Player]);//自機の衝突形状
 		}
 
 		game.Camera({ glm::vec4(0, 20, -8, 1), glm::vec3(0, 0, 12), glm::vec3(0, 0, 1) });
@@ -97,12 +180,15 @@ struct Update {
 		std::uniform_int_distribution<> distributerZ(40, 44);
 		interval -= delta;
 		if (interval <= 0) {
-			const std::uniform_real_distribution<> rndInterval(8.0, 16.0);
+			const std::uniform_real_distribution<> rndInterval(2.0, 5.0);//8.0, 16.0
 			const std::uniform_int_distribution<> rndAddingCount(1, 5);
 			for (int i = rndAddingCount(game.Rand()); i > 0; --i) {
 				const glm::vec3 pos(distributerX(game.Rand()), 0, distributerZ(game.Rand()));
-				if (Entity::Entity* p = game.AddEntity(pos, "Toroid", "Res/Toroid.bmp", UpdateToroid())) {
-					p->Velocity(glm::vec3(pos.x < 0 ? 1.0f : -1.0f, 0, -4));
+				//敵機を作成
+				if (Entity::Entity* p = game.AddEntity(EntityGroupId_Enemy, pos,
+					"Toroid", "Res/Toroid.bmp", UpdateToroid())) {
+					p->Velocity(glm::vec3(pos.x < 0 ? 1.0f : -1.0f, 0, -4));//pos.x < 0 ? 4.0f : -4.0f, 0, -16.0f
+					p->Collision(collisionDataList[EntityGroupId_Enemy]);//敵機の衝突形状
 				}
 			}
 			interval = rndInterval(game.Rand());
@@ -112,6 +198,22 @@ struct Update {
 	double interval = 0;
 	Entity::Entity* pPlayer = nullptr;
 };
+
+/**
+* 自機の弾と敵の衝突処理.
+*/
+void PlayerShotAndEnemyCollisionHandler(Entity::Entity& lhs, Entity::Entity& rhs){
+	// 敵機の位置に爆発エンティティを発生させる
+	GameEngine& game = GameEngine::Instance();
+	if (Entity::Entity* p = game.AddEntity(EntityGroupId_Others, rhs.Position(),
+		"Blast", "Res/Toroid.bmp", UpdateBlast())) {
+		const std::uniform_real_distribution<float> rotRange(0.0f, glm::pi<float>() * 2);
+		p->Rotation(glm::quat(glm::vec3(0, rotRange(game.Rand()), 0)));
+	}
+	// 削除
+	lhs.Destroy();// 自機の弾
+	rhs.Destroy();// 敵機
+}
 
 /**
 * Uniform Block Objectを作成する.
@@ -137,10 +239,17 @@ int main() {
 	if (!game.Init(800, 600, "OpenGL Tutorial")) {
 		return 1;
 	}
+	// ファイルを読み込み
 	game.LoadTextureFromFile("Res/Toroid.bmp");
 	game.LoadTextureFromFile("Res/Player.bmp");
 	game.LoadMeshFromFile("Res/Toroid.fbx");
 	game.LoadMeshFromFile("Res/Player.fbx");
-	game.UpdateFunc(Update());   game.Run();
+	game.LoadMeshFromFile("Res/Blast.fbx");// 爆発用のメッシュ
+
+	// GameEngineに登録
+	game.CollisionHandler(EntityGroupId_PlayerShot, EntityGroupId_Enemy,
+		&PlayerShotAndEnemyCollisionHandler);
+	game.UpdateFunc(Update());
+	game.Run();
 	return 0;
 }

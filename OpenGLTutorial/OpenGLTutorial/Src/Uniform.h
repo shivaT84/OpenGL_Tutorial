@@ -11,6 +11,7 @@ namespace Uniform {
 		glm::mat4 matMVP;
 		glm::mat4 matModel;
 		glm::mat3x4 matNormal;
+		glm::vec4 color;
 	};
 
 	/**
