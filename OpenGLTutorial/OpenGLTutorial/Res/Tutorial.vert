@@ -17,12 +17,13 @@ layout(std140) uniform VertexData {
 	mat4 matMVP;
 	mat4 matModel;
 	mat3x4 matNormal;
+	vec4 color;
 } vertexData;
 
 
 void main() {
 
-	outColor = vColor;
+	outColor = vColor * vertexData.color;
 	outTexCoord = vTexCoord;
 	outWorldPosition = (vertexData.matModel * vec4(vPosition, 1.0)).xyz;
 	outWorldNormal = mat3(vertexData.matNormal) * vNormal;
