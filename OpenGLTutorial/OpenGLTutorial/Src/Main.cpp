@@ -180,7 +180,7 @@ struct Update {
 		std::uniform_int_distribution<> distributerZ(40, 44);
 		interval -= delta;
 		if (interval <= 0) {
-			const std::uniform_real_distribution<> rndInterval(8.0, 16.0);//2.0, 5.0
+			const std::uniform_real_distribution<> rndInterval(2.0, 5.0);//8.0, 16.0
 			const std::uniform_int_distribution<> rndAddingCount(1, 5);
 			for (int i = rndAddingCount(game.Rand()); i > 0; --i) {
 				const glm::vec3 pos(distributerX(game.Rand()), 0, distributerZ(game.Rand()));
