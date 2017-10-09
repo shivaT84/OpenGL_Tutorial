@@ -121,7 +121,7 @@ struct UpdatePlayer {
 		}
 
 		if (vec.x || vec.z) {
-			vec = glm::normalize(vec) * 2.0f;//15.0f
+			vec = glm::normalize(vec) * 15.0f;//移動速度
 		}
 		entity.Velocity(vec);
 		entity.Rotation(glm::quat(glm::vec3(0, 0, rotZ)));
@@ -186,14 +186,14 @@ struct Update {
 		std::uniform_int_distribution<> distributerZ(40, 44);
 		interval -= delta;
 		if (interval <= 0) {
-			const std::uniform_real_distribution<> rndInterval(8.0, 16.0);//2.0, 5.0
+			const std::uniform_real_distribution<> rndInterval(2.0, 5.0);//出現頻度
 			const std::uniform_int_distribution<> rndAddingCount(1, 5);
 			for (int i = rndAddingCount(game.Rand()); i > 0; --i) {
 				const glm::vec3 pos(distributerX(game.Rand()), 0, distributerZ(game.Rand()));
 				//敵機を作成
 				if (Entity::Entity* p = game.AddEntity(EntityGroupId_Enemy, pos,
 					"Toroid", "Res/Toroid.bmp", UpdateToroid())) {
-					p->Velocity(glm::vec3(pos.x < 0 ? 1.0f : -1.0f, 0, -4));//pos.x < 0 ? 4.0f : -4.0f, 0, -16.0f
+					p->Velocity(glm::vec3(pos.x < 0 ? 4.0f : -4.0f, 0, -16));//移動速度
 					p->Collision(collisionDataList[EntityGroupId_Enemy]);//敵機の衝突形状
 				}
 			}
