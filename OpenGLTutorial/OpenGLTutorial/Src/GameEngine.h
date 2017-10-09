@@ -40,11 +40,9 @@ public:
 	const UpdateFuncType& UpdateFunc() const;
 
 	bool LoadMeshFromFile(const char* filename);
-	//const Mesh::MeshPtr& GetMesh(const char* name);
 	bool LoadTextureFromFile(const char* filename);
-	//const TexturePtr& GetTexture(const char* filename) const;
 	Entity::Entity* AddEntity(int groupId, const glm::vec3& pos, const char* meshName,
-		const char* texName, Entity::Entity::UpdateFuncType func);
+		const char* texName, Entity::Entity::UpdateFuncType func, const char* shader = nullptr);
 	void RemoveEntity(Entity::Entity*);
 	void Light(int index, const Uniform::PointLight& light);
 	const Uniform::PointLight& Light(int index) const;
@@ -54,6 +52,11 @@ public:
 	const CameraData& Camera() const;
 	std::mt19937& Rand();
 	const GamePad& GetGamePad() const;
+
+	bool InitAudio(const char* acfPath, const char* acbPath, const char* awbPath, const char* dspBusName);
+	void PlayAudio(int playerId, int cueId);
+	void StopAudio(int playerId);
+
 	void CollisionHandler(int gid0, int gid1, Entity::CollisionHandlerType handler);
 	const Entity::CollisionHandlerType& CollisionHandler(int gid0, int gid1) const;
 	void ClearCollisionHandlerList();
@@ -91,21 +94,9 @@ private:
 	GLuint vao = 0;
 	UniformBufferPtr uboLight;
 	UniformBufferPtr uboPostEffect;
-	Shader::ProgramPtr progTutorial;
-	Shader::ProgramPtr progColorFilter;
+	std::unordered_map<std::string, Shader::ProgramPtr> shaderMap;
 	OffscreenBufferPtr offscreen;
-	/*
-	Shader::ProgramPtr progPostEffect;
-	Shader::ProgramPtr progBloom1st;
-	Shader::ProgramPtr progComposition;
-	Shader::ProgramPtr progSimple;
-	Shader::ProgramPtr progLensFlare;
-	Shader::ProgramPtr progNonLighting;
-	
-	static const int bloomBufferCount = 6;
-	OffscreenBufferPtr offBloom[bloomBufferCount];
-	OffscreenBufferPtr offAnamorphic[2];
-	*/
+
 	std::unordered_map<std::string, TexturePtr> textureBuffer;
 	Mesh::BufferPtr meshBuffer;
 	Entity::BufferPtr entityBuffer;
@@ -119,7 +110,5 @@ private:
 private:
 	//<--- ‚±‚±‚Éƒƒ“ƒoŠÖ”‚ð’Ç‰Á‚·‚é --->
 };
-
-//void DefaultUpdateVertexData(Entity::Entity& e, void* ubo, double, const glm::mat4& matView, const glm::mat4& matProj);
 
 #endif // GAMEENGINE_H_INCLUDED

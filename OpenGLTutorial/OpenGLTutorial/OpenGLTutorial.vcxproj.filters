@@ -48,6 +48,15 @@
     <ClCompile Include="Src\Font.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Src\Audio.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\TitleState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MainGameState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -73,6 +82,12 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="Res\Font.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Res\NonLighting.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Res\NonLighting.vert">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
@@ -111,6 +126,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Src\Font.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Audio.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\GameState.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
