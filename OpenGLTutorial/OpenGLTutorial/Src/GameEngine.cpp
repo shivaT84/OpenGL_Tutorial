@@ -2,6 +2,7 @@
 * @file GameEngine.cpp
 */
 #include "GameEngine.h"
+#include "Audio.h"
 #include "GLFWEW.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
@@ -193,18 +194,33 @@ bool GameEngine::Init(int w, int h, const char* title){
 	vao = CreateVAO(vbo, ibo);
 	uboLight = UniformBuffer::Create(sizeof(Uniform::LightData), 1, "LightingData");
 	uboPostEffect = UniformBuffer::Create(sizeof(Uniform::PostEffectData), 2, "PostEffectData");
-	progTutorial = Shader::Program::Create("Res/Tutorial.vert", "Res/Tutorial.frag");
 
-	progColorFilter = Shader::Program::Create("Res/ColorFilter.vert", "Res/ColorFilter.frag");
 	offscreen = OffscreenBuffer::Create(800, 600);
 
-	if (!vbo || !ibo || !vao || !uboLight || !uboPostEffect || !progTutorial || !progColorFilter || !offscreen) {
+	if (!vbo || !ibo || !vao || !uboLight || !uboPostEffect || !offscreen) {
 		std::cerr << "ERROR: GameEngine の初期化に失敗" << std::endl;
 		return false;
 	}
-	progTutorial->UniformBlockBinding("VertexData", 0);
-	progTutorial->UniformBlockBinding("LightData", 1);
-	progColorFilter->UniformBlockBinding("PostEffectData", 2);
+
+	// シェーダ名とシェーダファイル名をセットにしてshaderNameListという配列に格納.
+	static const char* const shaderNameList[][3] = {
+		{ "Tutorial", "Res/Tutorial.vert", "Res/Tutorial.frag" },
+		{ "ColorFilter", "Res/ColorFilter.vert", "Res/ColorFilter.frag" },
+		{ "NonLighting", "Res/NonLighting.vert", "Res/NonLighting.frag" },
+	};
+	shaderMap.reserve(sizeof(shaderNameList) / sizeof(shaderNameList[0]));
+	// 全てのシェーダを作成.
+	for (auto& e : shaderNameList) {
+		Shader::ProgramPtr program = Shader::Program::Create(e[1], e[2]);
+		if (!program) {
+			return false;
+		}
+		shaderMap.insert(std::make_pair(std::string(e[0]), program));
+	}
+
+	shaderMap["Tutorial"]->UniformBlockBinding("VertexData", 0);
+	shaderMap["Tutorial"]->UniformBlockBinding("LightData", 1);
+	shaderMap["ColorFilter"]->UniformBlockBinding("PostEffectData", 2);
 
 	meshBuffer = Mesh::Buffer::Create(10 * 1024, 30 * 1024);
 	if (!meshBuffer) {
@@ -306,16 +322,33 @@ bool GameEngine::LoadMeshFromFile(const char* filename){
 * @param meshName エンティティの表示に使用するメッシュ名.
 * @param texName  エンティティの表示に使うテクスチャファイル名.
 * @param func     エンティティの状態を更新する関数(または関数オブジェクト).
+* @param shader   エンティティの表示に使うシェーダ名.
 *
 * @return 追加したエンティティへのポインタ.
 *         これ以上エンティティを追加できない場合はnullptrが返される.
 *         回転や拡大率はこのポインタ経由で設定する.
 *         なお、このポインタをアプリケーション側で保持する必要はない.
 */
-Entity::Entity* GameEngine::AddEntity(int groupId, const glm::vec3& pos, const char* meshName, const char* texName, Entity::Entity::UpdateFuncType func){
+Entity::Entity* GameEngine::AddEntity(int groupId, const glm::vec3& pos, const char* meshName,
+	const char* texName, Entity::Entity::UpdateFuncType func, const char* shader){
+
+	decltype(shaderMap)::const_iterator itr = shaderMap.end();
+	// シェーダ名が指定されているかどうか.
+	if (shader) {
+		// 指定されている場合はそのシェーダ名にする.
+		itr = shaderMap.find(shader);
+	}
+	// 指定されていない場合はTutorialをシェーダ名にする.
+	if (itr == shaderMap.end()) {
+		itr = shaderMap.find("Tutorial");
+		if (itr == shaderMap.end()) {
+			return nullptr;
+		}
+	}
+	// shaderMapから対応するシェーダプログラムを取得
 	const Mesh::MeshPtr& mesh = meshBuffer->GetMesh(meshName);
 	const TexturePtr& tex = textureBuffer.find(texName)->second;
-	return entityBuffer->AddEntity(groupId, pos, mesh, tex, progTutorial, func);
+	return entityBuffer->AddEntity(groupId, pos, mesh, tex, itr->second, func);
 }
 
 /**
@@ -448,9 +481,35 @@ void GameEngine::ClearCollisionHandlerList(){
 }
 
 /**
+* @copydoc Audio::Initialize
+*/
+bool GameEngine::InitAudio(const char* acfPath, const char* acbPath,
+	const char* awbPath, const char* dspBusName){
+	return Audio::Initialize(acfPath, acbPath, awbPath, dspBusName);
+}
+
+/**
+* @copydoc Audio::Play
+*/
+void GameEngine::PlayAudio(int playerId, int cueId){
+	Audio::Play(playerId, cueId);
+}
+
+/**
+* @copydoc Audio::Stop
+*/
+void GameEngine::StopAudio(int playerId){
+	Audio::Stop(playerId);
+}
+
+/**
 * デストラクタ.
 */
 GameEngine::~GameEngine(){
+
+	updateFunc = nullptr;
+	Audio::Destroy();
+
 	if (vao) {
 		glDeleteVertexArrays(1, &vao);
 	}
@@ -506,6 +565,7 @@ void GameEngine::Render() const{
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_BLEND);
 	glBindVertexArray(vao);
+	const Shader::ProgramPtr& progColorFilter = shaderMap.find("ColorFilter")->second;
 	progColorFilter->UseProgram();
 	Uniform::PostEffectData postEffect;
 	uboPostEffect->BufferSubData(&postEffect);
