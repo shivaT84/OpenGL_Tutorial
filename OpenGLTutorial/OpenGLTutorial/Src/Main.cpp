@@ -163,6 +163,12 @@ private:
 * ゲーム状態の更新.
 */
 struct Update {
+
+	Update() {
+		// 得点を初期化
+		GameEngine::Instance().UserVariable("score") = 0;//「score」という名前のグローバル変数を0で初期化
+	}
+
 	void operator()(double delta) {
 		GameEngine& game = GameEngine::Instance();
 
@@ -180,7 +186,7 @@ struct Update {
 		std::uniform_int_distribution<> distributerZ(40, 44);
 		interval -= delta;
 		if (interval <= 0) {
-			const std::uniform_real_distribution<> rndInterval(2.0, 5.0);//8.0, 16.0
+			const std::uniform_real_distribution<> rndInterval(8.0, 16.0);//2.0, 5.0
 			const std::uniform_int_distribution<> rndAddingCount(1, 5);
 			for (int i = rndAddingCount(game.Rand()); i > 0; --i) {
 				const glm::vec3 pos(distributerX(game.Rand()), 0, distributerZ(game.Rand()));
@@ -193,6 +199,10 @@ struct Update {
 			}
 			interval = rndInterval(game.Rand());
 		}
+		// 得点を表示する.
+		char str[16];
+		snprintf(str, 16, "%08.0f", game.UserVariable("score"));
+		game.AddString(glm::vec2(-0.2f, 1.0f), str);
 	}
 
 	double interval = 0;
@@ -209,6 +219,9 @@ void PlayerShotAndEnemyCollisionHandler(Entity::Entity& lhs, Entity::Entity& rhs
 		"Blast", "Res/Toroid.bmp", UpdateBlast())) {
 		const std::uniform_real_distribution<float> rotRange(0.0f, glm::pi<float>() * 2);
 		p->Rotation(glm::quat(glm::vec3(0, rotRange(game.Rand()), 0)));
+
+		// 得点を加算する(敵を撃墜したら100点ずつ加算).
+		game.UserVariable("score") += 100;
 	}
 	// 削除
 	lhs.Destroy();// 自機の弾
@@ -244,7 +257,8 @@ int main() {
 	game.LoadTextureFromFile("Res/Player.bmp");
 	game.LoadMeshFromFile("Res/Toroid.fbx");
 	game.LoadMeshFromFile("Res/Player.fbx");
-	game.LoadMeshFromFile("Res/Blast.fbx");// 爆発用のメッシュ
+	game.LoadMeshFromFile("Res/Blast.fbx");//爆発用のメッシュファイル
+	game.LoadFontFromFile("Res/UniNeue.fnt");//フォントファイル
 
 	// GameEngineに登録
 	game.CollisionHandler(EntityGroupId_PlayerShot, EntityGroupId_Enemy,

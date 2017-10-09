@@ -159,7 +159,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\BufferObject.cpp" />
     <ClCompile Include="Src\Entity.cpp" />
+    <ClCompile Include="Src\Font.cpp" />
     <ClCompile Include="Src\GameEngine.cpp" />
     <ClCompile Include="Src\GLFWEW.cpp" />
     <ClCompile Include="Src\Main.cpp" />
@@ -173,13 +175,17 @@
     <None Include="packages.config" />
     <None Include="Res\ColorFilter.frag" />
     <None Include="Res\ColorFilter.vert" />
+    <None Include="Res\Font.frag" />
+    <None Include="Res\Font.vert" />
     <None Include="Res\Posterization.frag" />
     <None Include="Res\Posterization.vert" />
     <None Include="Res\Tutorial.frag" />
     <None Include="Res\Tutorial.vert" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\BufferObject.h" />
     <ClInclude Include="Src\Entity.h" />
+    <ClInclude Include="Src\Font.h" />
     <ClInclude Include="Src\GameEngine.h" />
     <ClInclude Include="Src\GamePad.h" />
     <ClInclude Include="Src\GLFWEW.h" />
