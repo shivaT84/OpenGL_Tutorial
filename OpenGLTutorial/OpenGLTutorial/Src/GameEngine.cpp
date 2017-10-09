@@ -217,21 +217,31 @@ bool GameEngine::Init(int w, int h, const char* title){
 		return false;
 	}
 	rand.seed(std::random_device()());
+	// //Font::Rendererを初期化
+	fontRenderer.Init(1024, glm::vec2(800, 600));
 
 	isInitialized = true;
 	return true;
 }
 
 /**
-* ゲームを実行する.
+* @desc	ゲームを実行する.
+* @tips	開発環境と実行環境で処理速度が異なる場合、
+*		ゲームの動作速度が意図したものとは異なる可能性がある。
+*		そのため、実際の経過時間を計測する。
 */
 void GameEngine::Run(){
-	const double delta = 1.0 / 60.0;
 	GLFWEW::Window& window = GLFWEW::Window::Instance();
 
+	// 現在の時刻(秒)を取得する(ブレークポイントなどの一時停止中も進む)
+	double prevTime = glfwGetTime();
+
 	while (!window.ShouldClose()) {
+		const double curTime = glfwGetTime();
+		const double delta = curTime - prevTime;
+		prevTime = curTime;
 		window.UpdateGamePad();
-		Update(delta);
+		Update(glm::min(0.25, delta));//デバッグ用に0.25を越えないように制御
 		Render();
 		window.SwapBuffers();
 	}
@@ -458,6 +468,10 @@ GameEngine::~GameEngine(){
 * @param delta 前回の更新からの経過時間(秒).
 */
 void GameEngine::Update(double delta){
+
+	// 文字用のVBOを準備(更新関数内でAddString関数を呼び出せるようにする).
+	fontRenderer.MapBuffer();
+
 	if (updateFunc) {
 		updateFunc(delta);
 	}
@@ -465,6 +479,8 @@ void GameEngine::Update(double delta){
 	const glm::mat4x4 matProj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 1.0f, 200.0f);
 	const glm::mat4x4 matView = glm::lookAt(camera.position, camera.target, camera.up);
 	entityBuffer->Update(delta, matView, matProj);
+	// VBOをGPUメモリに転送する.
+	fontRenderer.UnmapBuffer();
 }
 
 /**
@@ -495,6 +511,8 @@ void GameEngine::Render() const{
 	uboPostEffect->BufferSubData(&postEffect);
 	progColorFilter->BindTexture(GL_TEXTURE0, GL_TEXTURE_2D, offscreen->GetTexutre());
 	glDrawElements(GL_TRIANGLES, renderingData[1].size, GL_UNSIGNED_INT, renderingData[1].offset);
+	// 文字を描画する.
+	fontRenderer.Draw();
 }
 
 /**

@@ -42,6 +42,12 @@
     <ClCompile Include="Src\GameEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Src\BufferObject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Font.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -61,6 +67,12 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="Res\Posterization.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Res\Font.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Res\Font.vert">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
@@ -93,6 +105,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Src\GamePad.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\BufferObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Font.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

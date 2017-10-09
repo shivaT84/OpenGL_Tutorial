@@ -1,8 +1,10 @@
 /**
 * @file GameEngine.h
 */
+
 #ifndef GAMEENGINE_H_INCLUDED
 #define GAMEENGINE_H_INCLUDED
+
 #include <GL/glew.h>
 #include "UniformBuffer.h"
 #include "OffscreenBuffer.h"
@@ -12,6 +14,7 @@
 #include "Entity.h"
 #include "Uniform.h"
 #include "GamePad.h"
+#include "Font.h"
 #include <glm/glm.hpp>
 #include <functional>
 #include <random>
@@ -55,8 +58,20 @@ public:
 	const Entity::CollisionHandlerType& CollisionHandler(int gid0, int gid1) const;
 	void ClearCollisionHandlerList();
 
-	//Entity::Buffer::Iterator BeginEntity() { return entityBuffer->Begin(); }
-	//Entity::Buffer::Iterator EndEntity() { return entityBuffer->End(); }
+	const TexturePtr& GetTexture(const char* filename) const {
+		static const TexturePtr dummy;
+		auto itr = textureBuffer.find(filename);
+		return itr != textureBuffer.end() ? itr->second : dummy;
+	}
+	bool LoadFontFromFile(const char* filename) {
+		return fontRenderer.LoadFromFile(filename);
+	}
+	bool AddString(const glm::vec2& pos, const char* str) {
+		return fontRenderer.AddString(pos, str);
+	}
+	void FontScale(const glm::vec2& scale) { fontRenderer.Scale(scale); }
+	void FontColor(const glm::vec4& color) { fontRenderer.Color(color); }
+	double& UserVariable(const char* name) { return userNumbers[name]; }
 	
 private:
 	GameEngine() = default;
@@ -94,10 +109,12 @@ private:
 	std::unordered_map<std::string, TexturePtr> textureBuffer;
 	Mesh::BufferPtr meshBuffer;
 	Entity::BufferPtr entityBuffer;
-
+	Font::Renderer fontRenderer;
 	Uniform::LightData lightData;
 	CameraData camera;
 	std::mt19937 rand;
+	// 様々な変数を格納できる機能を追加(得点を保存する変数とか).
+	std::unordered_map<std::string, double> userNumbers;
 
 private:
 	//<--- ここにメンバ関数を追加する --->
