@@ -314,8 +314,17 @@ bool GameEngine::LoadMeshFromFile(const char* filename){
 	return meshBuffer->LoadMeshFromFile(filename);
 }
 
+
+/// エンティティを追加する.
+Entity::Entity* GameEngine::AddEntity(int groupId, const glm::vec3& pos, const char* meshName,
+	const char* texName, Entity::Entity::UpdateFuncType func, const char* shader){
+
+	// ノーマルマップテクスチャ名をnullptrにして、オーバーロードバージョンを呼び出す.
+	return AddEntity(groupId, pos, meshName, texName, nullptr, func, shader);
+}
+
 /**
-* エンティティを追加する.
+* エンティティを追加する(オーバーロードバージョン).
 *
 * @param groupId  エンティティのグループID.
 * @param position エンティティの座標.
@@ -329,8 +338,9 @@ bool GameEngine::LoadMeshFromFile(const char* filename){
 *         回転や拡大率はこのポインタ経由で設定する.
 *         なお、このポインタをアプリケーション側で保持する必要はない.
 */
-Entity::Entity* GameEngine::AddEntity(int groupId, const glm::vec3& pos, const char* meshName,
-	const char* texName, Entity::Entity::UpdateFuncType func, const char* shader){
+Entity::Entity* GameEngine::AddEntity(int groupId, const glm::vec3& pos,
+	const char* meshName, const char* texName, const char* normalName,
+	Entity::Entity::UpdateFuncType func, const char* shader){
 
 	decltype(shaderMap)::const_iterator itr = shaderMap.end();
 	// シェーダ名が指定されているかどうか.
@@ -347,7 +357,13 @@ Entity::Entity* GameEngine::AddEntity(int groupId, const glm::vec3& pos, const c
 	}
 	// shaderMapから対応するシェーダプログラムを取得
 	const Mesh::MeshPtr& mesh = meshBuffer->GetMesh(meshName);
-	const TexturePtr& tex = textureBuffer.find(texName)->second;
+	TexturePtr tex[2];
+	tex[0] = GetTexture(texName);
+	if (normalName) {//0にすると「Dummy」
+		tex[1] = GetTexture(normalName);
+	} else {
+		tex[1] = GetTexture("Res/Dummy.Normal.bmp");
+	}
 	return entityBuffer->AddEntity(groupId, pos, mesh, tex, itr->second, func);
 }
 

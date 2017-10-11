@@ -42,7 +42,13 @@ public:
 	bool LoadMeshFromFile(const char* filename);
 	bool LoadTextureFromFile(const char* filename);
 	Entity::Entity* AddEntity(int groupId, const glm::vec3& pos, const char* meshName,
-		const char* texName, Entity::Entity::UpdateFuncType func, const char* shader = nullptr);
+		const char* texName, Entity::Entity::UpdateFuncType func, const char* shader = nullptr
+	);
+	// AddEntityのオーバーロードバージョン.
+	Entity::Entity* AddEntity(int groupId, const glm::vec3& pos, const char* meshName,
+		const char* texName, const char* normalName,
+		Entity::Entity::UpdateFuncType func, const char* shader = nullptr
+	);
 	void RemoveEntity(Entity::Entity*);
 	void Light(int index, const Uniform::PointLight& light);
 	const Uniform::PointLight& Light(int index) const;
