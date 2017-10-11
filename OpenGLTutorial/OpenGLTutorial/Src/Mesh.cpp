@@ -16,6 +16,7 @@ namespace Mesh {
 		glm::vec4 color; ///< 色
 		glm::vec2 texCoord; ///< テクスチャ座標.
 		glm::vec3 normal; ///< 法線
+		glm::vec4 tangent; ///< 接ベクトル
 	};
 
 	/**
@@ -88,8 +89,10 @@ namespace Mesh {
 		SetVertexAttribPointer(1, Vertex, color);
 		SetVertexAttribPointer(2, Vertex, texCoord);
 		SetVertexAttribPointer(3, Vertex, normal);
+		SetVertexAttribPointer(4, Vertex, tangent);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 		glBindVertexArray(0);
+
 		return vao;
 	}
 
@@ -139,6 +142,40 @@ namespace Mesh {
 			static_cast<float>(fbxVec[0]),
 			static_cast<float>(fbxVec[1])
 		);
+	}
+
+	/**
+	* 頂点パラメータを取得する.
+	*
+	* @param mappingMode	使用するインデックスを選択するマッピングモード.
+	* @param isDirectRef	直接参照モードなら真、間接参照モードなら偽を渡す.
+	* @param pIndexList		間接参照用のインデックス配列. isDirectRefが偽の場合に使われる.
+	* @param pList          要素の配列.
+	* @param cpIndex        マッピングモードが頂点単位の場合に使用するインデックス.
+	* @param polygonVertex	マッピングモードがポリゴン単位の場合に使用するインデックス.
+	* @param defaultValue	未対応マッピングモードの場合に返す値.
+	*
+	* @return	マッピングモードと参照モードに応じて適切な配列から頂点のパラメータを返す.
+	*           対応していないマッピングモードの場合はdefaultValueを返す.
+	*/
+	template<typename T>
+	T GetElement(
+		FbxGeometryElement::EMappingMode mappingMode,
+		bool isDirectRef,
+		const FbxLayerElementArrayTemplate<int>* pIndexList,
+		const FbxLayerElementArrayTemplate<T>* pList,
+		int cpIndex,
+		int polygonVertex,
+		const T& defaultValue)
+	{
+		switch (mappingMode) {
+		case FbxLayerElement::eByControlPoint:
+			return (*pList)[isDirectRef ? cpIndex : (*pIndexList)[cpIndex]];
+		case FbxLayerElement::eByPolygonVertex:
+			return (*pList)[isDirectRef ? polygonVertex : (*pIndexList)[polygonVertex]];
+		default:
+			return defaultValue;
+		}
 	}
 
 	/**
@@ -274,36 +311,6 @@ namespace Mesh {
 						static_cast<float>(1.0f - pLambert->TransparencyFactor)
 					);
 				}
-				/*
-				// テクスチャファイル名を読み取る.
-				const char* const propNameList[] = {
-					FbxSurfaceMaterial::sDiffuse,
-					FbxSurfaceMaterial::sSpecular,
-					FbxSurfaceMaterial::sNormalMap,
-					FbxSurfaceMaterial::sAmbient,
-					FbxSurfaceMaterial::sEmissive,
-				};
-				for (const char* propName : propNameList) {
-					FbxProperty prop = fbxMaterial->FindProperty(propName);
-					const int layeredCount = prop.GetSrcObjectCount<FbxLayeredTexture>();
-					if (layeredCount > 0) {
-						for (int i = 0; i < layeredCount; ++i) {
-							FbxLayeredTexture* tex = prop.GetSrcObject<FbxLayeredTexture>(i);
-							const int texCount = tex->GetSrcObjectCount<FbxTexture>();
-							for (int j = 0; j < texCount; ++j) {
-								tex->GetSrcObject<FbxTexture>(j)->UVSet;
-								material.textureName.emplace_back(tex->GetSrcObject<FbxTexture>(j)->GetName());
-							}
-						}
-					}
-					else {
-						const int texCount = prop.GetSrcObjectCount<FbxTexture>();
-						for (int j = 0; j < texCount; ++j) {
-							material.textureName.emplace_back(prop.GetSrcObject<FbxTexture>(j)->GetName());
-						}
-					}
-				}
-				*/
 			}
 			mesh.materialList.push_back(material);
 		}
@@ -315,6 +322,7 @@ namespace Mesh {
 		const bool hasColor = fbxMesh->GetElementVertexColorCount() > 0;
 		const bool hasTexcoord = fbxMesh->GetElementUVCount() > 0;
 		const bool hasNormal = fbxMesh->GetElementNormalCount() > 0;
+		const bool hasTangent = fbxMesh->GetElementTangentCount() > 0;//接ベクトル
 
 		// UVデータ名のリストを取得する.
 		FbxStringList uvSetNameList;
@@ -333,6 +341,28 @@ namespace Mesh {
 			IsColorDirectRef = fbxColorList->GetReferenceMode() == FbxLayerElement::eDirect;
 			colorIndexList = &fbxColorList->GetIndexArray();
 			colorList = &fbxColorList->GetDirectArray();
+		}
+
+		// 接ベクトルを読み取る準備.
+		FbxGeometryElement::EMappingMode tangentMappingMode = FbxLayerElement::eNone;
+		bool isTangentDirectRef = true;
+		const FbxLayerElementArrayTemplate<int>* tangentIndexList = nullptr;
+		const FbxLayerElementArrayTemplate<FbxVector4>* tangentList = nullptr;
+		FbxGeometryElement::EMappingMode binormalMappingMode = FbxLayerElement::eNone;
+		bool isBinormalDirectRef = true;
+		const FbxLayerElementArrayTemplate<int>* binormalIndexList = nullptr;
+		const FbxLayerElementArrayTemplate<FbxVector4>* binormalList = nullptr;
+		if (hasTangent) {
+			const FbxGeometryElementTangent* fbxTangentList = fbxMesh->GetElementTangent();
+			tangentMappingMode = fbxTangentList->GetMappingMode();
+			isTangentDirectRef = fbxTangentList->GetReferenceMode() == FbxLayerElement::eDirect;
+			tangentIndexList = &fbxTangentList->GetIndexArray();
+			tangentList = &fbxTangentList->GetDirectArray();
+			const FbxGeometryElementBinormal* fbxBinormaltList = fbxMesh->GetElementBinormal();
+			binormalMappingMode = fbxBinormaltList->GetMappingMode();
+			isBinormalDirectRef = fbxBinormaltList->GetReferenceMode() == FbxLayerElement::eDirect;
+			binormalIndexList = &fbxBinormaltList->GetIndexArray();
+			binormalList = &fbxBinormaltList->GetDirectArray();
 		}
 
 		// マテリアルが存在する場合は、頂点のマテリアルインデックスリストを取得する.
@@ -390,6 +420,30 @@ namespace Mesh {
 					fbxMesh->GetPolygonVertexNormal(polygonIndex, pos, normal);
 					v.normal = glm::normalize(ToVec3(matR.MultT(normal)));
 				}
+				//====================================================================
+				// 接ベクトルを読み取って頂点データに格納.
+				//====================================================================
+				v.tangent = glm::vec4(1, 0, 0, 1);
+				if (hasTangent) {
+					// binormal変数に従法線ベクトル取得.
+					const glm::vec3 binormal = ToVec3(matR.MultT(GetElement(
+						binormalMappingMode, isBinormalDirectRef, binormalIndexList,
+						binormalList, cpIndex, polygonVertex, FbxVector4(0, 1, 0, 1)
+					)));
+					// tangent変数に接ベクトル取得.
+					const glm::vec3 tangent = ToVec3(matR.MultT(GetElement(
+						tangentMappingMode, isTangentDirectRef, tangentIndexList,
+						tangentList, cpIndex, polygonVertex, FbxVector4(1, 0, 0, 1)
+					)));
+					v.tangent = glm::vec4(tangent, 1);
+					// normalとtangentから仮の従法線ベクトルを計算.
+					const glm::vec3 binormalTmp = glm::normalize(glm::cross(v.normal, tangent));
+					// 計算した方向が取得した従法線ベクトルと異なるとき
+					if (glm::dot(binormal, binormalTmp) < 0) {
+						v.tangent.w = -1;//負方向を示す.
+					}
+				}
+
 				// 頂点に対応する仮マテリアルに、頂点データとインデックスデータを追加する.
 				TemporaryMaterial& materialData = mesh.materialList[materialIndexList ? (*materialIndexList)[polygonIndex] : 0];
 				materialData.indexBuffer.push_back(static_cast<uint32_t>(materialData.vertexBuffer.size()));

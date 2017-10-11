@@ -239,7 +239,8 @@ namespace GameState {
 				const glm::vec3 pos(distributerX(game.Rand()), 0, distributerZ(game.Rand()));
 				//敵機を作成
 				if (Entity::Entity* p = game.AddEntity(EntityGroupId_Enemy, pos,
-					"Toroid", "Res/Toroid.bmp", UpdateToroid())) {
+					"Toroid", "Res/Toroid.bmp", "Res/Toroid.Normal.bmp",
+					UpdateToroid())) {
 					p->Velocity(glm::vec3(pos.x < 0 ? 4.0f : -4.0f, 0, -16));//移動速度
 					p->Collision(collisionDataList[EntityGroupId_Enemy]);//敵機の衝突形状
 				}

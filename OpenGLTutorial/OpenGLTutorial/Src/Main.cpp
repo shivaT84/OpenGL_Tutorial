@@ -26,6 +26,8 @@ int main() {
 	// ファイルを読み込み
 	game.LoadTextureFromFile("Res/SpaceSphere.bmp");
 	game.LoadTextureFromFile("Res/Toroid.bmp");
+	game.LoadTextureFromFile("Res/Toroid.Normal.bmp");
+	game.LoadTextureFromFile("Res/Dummy.Normal.bmp");
 	game.LoadTextureFromFile("Res/Player.bmp");
 	game.LoadMeshFromFile("Res/SpaceSphere.fbx");//遠景モデル
 	game.LoadMeshFromFile("Res/Toroid.fbx");
